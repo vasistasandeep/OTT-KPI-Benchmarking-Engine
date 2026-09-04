@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Dark-theme base layer (Req 15.1).
+ * The app renders dark by default: the `dark` class is applied to <html> in
+ * index.html, and :root carries the low-luminance surface palette so no flash
+ * of light theme occurs before hydration. Light values are provided under
+ * .light for a possible future toggle but are not used by default.
+ */
+@layer base {
+  :root {
+    /* Low-luminance broadcast surfaces */
+    --background: 222 47% 6%;
+    --foreground: 210 40% 96%;
+
+    --card: 222 44% 9%;
+    --card-foreground: 210 40% 96%;
+
+    --popover: 222 44% 9%;
+    --popover-foreground: 210 40% 96%;
+
+    --primary: 199 89% 55%;
+    --primary-foreground: 222 47% 8%;
+
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 96%;
+
+    --muted: 217 33% 14%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 217 33% 20%;
+    --accent-foreground: 210 40% 96%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 33% 20%;
+    --input: 217 33% 20%;
+    --ring: 199 89% 55%;
+
+    /* High-contrast RAG accents (never color-only in the UI) */
+    --rag-green: 142 71% 45%;
+    --rag-amber: 38 92% 55%;
+    --rag-red: 0 72% 55%;
+    --rag-neutral: 215 20% 55%;
+
+    /* Chart stroke colors — the single source of truth for App_A / App_B
+     * lines so a palette change can't silently regress chart contrast. */
+    --chart-app-a: 199 89% 60%;
+    --chart-app-b: 330 81% 65%;
+
+    --radius: 0.5rem;
+  }
+
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 199 89% 48%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 199 89% 48%;
+    --rag-green: 142 71% 40%;
+    --rag-amber: 38 92% 45%;
+    --rag-red: 0 72% 48%;
+    --rag-neutral: 215 16% 47%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "tnum" 1; /* tabular numerals for aligned KPI columns */
+  }
+}
