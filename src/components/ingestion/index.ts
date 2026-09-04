@@ -12,3 +12,6 @@ export type { IngestionModePromptProps } from "./IngestionModePrompt";
 
 export { ColumnMappingModal } from "./ColumnMappingModal";
 export type { ColumnMappingModalProps } from "./ColumnMappingModal";
+
+export { UploadDataFlow } from "./UploadDataFlow";
+export type { UploadDataFlowProps } from "./UploadDataFlow";

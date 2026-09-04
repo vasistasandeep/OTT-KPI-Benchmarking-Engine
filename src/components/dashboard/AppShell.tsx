@@ -1,11 +1,25 @@
 import * as React from "react";
-import { Activity, DatabaseZap, Loader2, SearchX } from "lucide-react";
+import { Activity, DatabaseZap, Loader2, PencilLine, SearchX } from "lucide-react";
 
 import { GlobalFilterBar } from "./GlobalFilterBar";
+import { ScorecardGrid } from "./ScorecardGrid";
 import { WinnerHeatmap } from "./WinnerHeatmap";
-import { createKPIRepository, type RepositoryBootResult } from "@/repository";
+import { TimeSeriesOverlay } from "./TimeSeriesOverlay";
+import { PercentileDistribution } from "./PercentileDistribution";
+import { Button } from "@/components/ui/button";
+import { DatasetSwitcher } from "@/components/dataset";
+import { ExecutiveReport, ExportMenu } from "@/components/export";
+import { UploadDataFlow } from "@/components/ingestion";
+import { ManualEntryForm } from "@/components/manual";
+import {
+  createKPIRepository,
+  type KPIDataRepository,
+  type RepositoryBootResult,
+} from "@/repository";
 import {
   hydrate,
+  restoreActiveDataset,
+  runRecompute,
   useDatasetStore,
   useResultStore,
   type RecomputeHandle,
@@ -21,14 +35,16 @@ import {
  * recompute (Req 3.3, 10.5). The returned {@link RecomputeHandle} is disposed on
  * unmount so the filter subscription and any pending recompute are torn down.
  *
- * The content area is intentionally a set of clearly-marked slots. The real
- * dashboard modules (scorecards, winner heatmap, trend charts, breakdown
- * tables) are built in tasks 17.x and dropped into these slots later; this task
- * only proves the shell composes, hydrates, and reflects the store state.
+ * Below the header it renders a data toolbar (Upload data, DatasetSwitcher, and
+ * a Manual entry toggle) and the sticky {@link GlobalFilterBar} with the
+ * {@link ExportMenu} in its trailing slot. The content area then composes the
+ * real dashboard modules — {@link ScorecardGrid}, {@link WinnerHeatmap},
+ * {@link TimeSeriesOverlay}, {@link PercentileDistribution} — wrapped in the
+ * {@link ExecutiveReport} print target. A `children` override replaces the
+ * default module composition (used by tests and isolated harnesses).
  *
  * When the active slice matches no records, the shell surfaces a single no-data
- * state in the content area (Req 10.6); once modules exist, each renders its own
- * no-data state and this shell-level one is replaced.
+ * state in the content area (Req 10.6).
  *
  * All colors resolve against the dark-theme token layer in `index.css`; nothing
  * here hard-codes a color (Req 15.1).
@@ -42,35 +58,20 @@ export interface AppShellProps {
    */
   bootRepository?: () => Promise<RepositoryBootResult>;
   /**
-   * Optional Export menu rendered into the filter bar's trailing slot. Wired by
-   * task 18.x; omitted here.
+   * Optional Export menu rendered into the filter bar's trailing slot. Defaults
+   * to the real {@link ExportMenu}; tests inject their own node.
    */
   exportSlot?: React.ReactNode;
   /**
-   * The dashboard module content. Later tasks (17.x) pass the composed modules;
-   * when omitted the shell renders labelled placeholder slots so the layout is
-   * verifiable in isolation.
+   * The dashboard module content. When omitted the shell renders the default
+   * module composition (ScorecardGrid, WinnerHeatmap, TimeSeriesOverlay,
+   * PercentileDistribution); passing children replaces it (tests/harnesses).
    */
   children?: React.ReactNode;
 }
 
 /** The recompute lifecycle status the shell reflects in the content area. */
 type BootPhase = "booting" | "ready" | "error";
-
-/** A labelled placeholder for a module built in a later task (17.x). */
-function ModuleSlot({ title, note }: { title: string; note: string }) {
-  return (
-    <section
-      aria-label={title}
-      className="rounded-lg border border-dashed border-border bg-card/40 p-6"
-    >
-      <h2 className="text-sm font-semibold tracking-tight text-foreground">
-        {title}
-      </h2>
-      <p className="mt-1 text-xs text-muted-foreground">{note}</p>
-    </section>
-  );
-}
 
 /** The shell-level no-data state shown when the slice matches nothing (Req 10.6). */
 function NoDataState() {
@@ -99,11 +100,37 @@ export function AppShell({
   const [phase, setPhase] = React.useState<BootPhase>("booting");
   const [advisory, setAdvisory] = React.useState<string | undefined>(undefined);
   const [bootError, setBootError] = React.useState<string | null>(null);
+  // The booted repository, lifted into state so the toolbar (upload, dataset
+  // switcher, manual entry) can share the single persistence surface the boot
+  // effect created (task: wire dashboard composition).
+  const [repository, setRepository] = React.useState<KPIDataRepository | null>(
+    null,
+  );
+  const [manualOpen, setManualOpen] = React.useState(false);
 
   const noData = useResultStore((s) => s.noData);
   const status = useResultStore((s) => s.status);
   const progressLabel = useResultStore((s) => s.progress?.label ?? null);
-  const datasetName = useDatasetStore((s) => s.activeDataset?.name ?? null);
+  const activeDataset = useDatasetStore((s) => s.activeDataset);
+  const appALabel = useDatasetStore((s) => s.appALabel);
+  const appBLabel = useDatasetStore((s) => s.appBLabel);
+  const setActiveDataset = useDatasetStore((s) => s.setActiveDataset);
+  const setDatasets = useDatasetStore((s) => s.setDatasets);
+  const datasetName = activeDataset?.name ?? null;
+
+  /**
+   * Reload the active dataset (records included) from the repository into the
+   * store, refresh the dataset metadata list, then recompute so every module —
+   * including ScorecardGrid's sparkline derivation and `applySlice` — sees the
+   * new records. Used after an ingest, a manual edit, or a dataset change.
+   */
+  const reloadAndRecompute = React.useCallback(async () => {
+    if (!repository) return;
+    const active = await restoreActiveDataset(repository);
+    setActiveDataset(active);
+    setDatasets(await repository.listDatasets());
+    await runRecompute();
+  }, [repository, setActiveDataset, setDatasets]);
 
   // A single polite live region announcing the recompute lifecycle so screen
   // readers hear when results are being recomputed, updated, or failed without
@@ -132,6 +159,7 @@ export function AppShell({
         const boot = await bootRepository();
         if (disposed) return;
         setAdvisory(boot.advisory);
+        setRepository(boot.repository);
         handle = await hydrate(boot.repository);
         if (disposed) {
           handle.dispose();
@@ -193,7 +221,57 @@ export function AppShell({
         </div>
       )}
 
-      <GlobalFilterBar exportSlot={exportSlot} />
+      {/* Data toolbar: upload, dataset switcher, manual entry. Chrome that has
+          no place on a printed report is marked data-print-hide (Req 18.5). */}
+      {phase === "ready" && repository && (
+        <div
+          data-print-hide
+          className="flex flex-col gap-3 border-b border-border px-4 py-3"
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <UploadDataFlow
+              repository={repository}
+              appALabel={appALabel}
+              appBLabel={appBLabel}
+              onIngested={reloadAndRecompute}
+            />
+            <DatasetSwitcher
+              repository={repository}
+              onRecompute={reloadAndRecompute}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant={manualOpen ? "default" : "outline"}
+              aria-expanded={manualOpen}
+              aria-controls="manual-entry-section"
+              onClick={() => setManualOpen((v) => !v)}
+            >
+              <PencilLine className="size-3.5" aria-hidden="true" />
+              Manual entry
+            </Button>
+          </div>
+
+          {manualOpen && activeDataset && (
+            <section
+              id="manual-entry-section"
+              aria-label="Manual entry"
+              className="rounded-lg border border-border bg-card/40 p-4"
+            >
+              <ManualEntryForm
+                datasetId={activeDataset.id}
+                repository={repository}
+                appALabel={appALabel}
+                appBLabel={appBLabel}
+                records={activeDataset.records}
+                onRecompute={reloadAndRecompute}
+              />
+            </section>
+          )}
+        </div>
+      )}
+
+      <GlobalFilterBar exportSlot={exportSlot ?? <ExportMenu />} />
 
       <main className="flex-1 px-4 py-4">
         {phase === "booting" && (
@@ -219,21 +297,21 @@ export function AppShell({
           (noData ? (
             <NoDataState />
           ) : (
-            <div className="flex flex-col gap-4" aria-busy={status === "computing"}>
-              {children ?? (
-                <>
-                  <ModuleSlot
-                    title="KPI Scorecards"
-                    note="Per-pillar scorecards with delta and RAG badging arrive in task 17.x."
-                  />
-                  <WinnerHeatmap />
-                  <ModuleSlot
-                    title="Trend Charts & Breakdown Tables"
-                    note="Trend charts and virtualized breakdown tables arrive in task 17.x."
-                  />
-                </>
-              )}
-            </div>
+            <ExecutiveReport>
+              <div
+                className="flex flex-col gap-4"
+                aria-busy={status === "computing"}
+              >
+                {children ?? (
+                  <>
+                    <ScorecardGrid />
+                    <WinnerHeatmap />
+                    <TimeSeriesOverlay />
+                    <PercentileDistribution />
+                  </>
+                )}
+              </div>
+            </ExecutiveReport>
           ))}
       </main>
     </div>
