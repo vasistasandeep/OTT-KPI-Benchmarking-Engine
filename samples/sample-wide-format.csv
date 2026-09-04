@@ -1,0 +1,8 @@
+date,platform,stream_type,vst_p50_s_app_a,vst_p50_s_app_b,rebuffer_ratio_pct_app_a,rebuffer_ratio_pct_app_b,avg_rendered_bitrate_mbps_app_a,avg_rendered_bitrate_mbps_app_b,ad_fill_rate_pct_app_a,ad_fill_rate_pct_app_b,ttfb_ms_app_a,ttfb_ms_app_b
+2026-08-29,Apple TV,FAST linear,2.49,2.38,0.82,1.64,6.1,7,98.5,91.6,100,111
+2026-08-30,Android TV,FAST linear,0.5,0.99,2.79,1.43,6.12,7.17,94.1,83.6,42,102
+2026-08-31,Android TV,Live Sports/Events,0.82,1.31,0.72,1.87,5,4.65,95.9,86.3,202,172
+2026-09-01,Apple TV,VOD Movies,1.68,0.64,2.85,1.26,3.96,5.14,92.4,89.5,183,58
+2026-09-02,iOS,Live Sports/Events,0.66,0.73,0.5,0.8,3.32,6.9,89.7,92.6,143,83
+2026-09-03,WebOS,VOD Series,0.76,1.12,2.05,0.18,4.25,8.13,93.2,80.5,170,119
+2026-09-04,Android TV,VOD Series,2.31,1.73,2.13,1.09,3.22,7.22,80.4,97.5,155,92
