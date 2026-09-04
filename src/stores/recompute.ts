@@ -145,8 +145,16 @@ export const scheduleRecompute = debounce(() => {
  *
  * The chosen dataset becomes the active dataset in the repository too, so the
  * next boot restores the same selection.
+ *
+ * @param repository the ready {@link KPIDataRepository}.
+ * @param nowMs      reference "now" for anchoring the demo fallback window; the
+ *   seeded demo window ends on this UTC day so the default 7d/30d presets
+ *   (which resolve relative to "now") overlap the demo records on first load.
  */
-export async function restoreActiveDataset(repository: KPIDataRepository): Promise<Dataset | null> {
+export async function restoreActiveDataset(
+  repository: KPIDataRepository,
+  nowMs: number = Date.now(),
+): Promise<Dataset | null> {
   const activeId = await repository.getActiveDatasetId();
   if (activeId) {
     const active = await repository.getDataset(activeId);
@@ -167,7 +175,12 @@ export async function restoreActiveDataset(repository: KPIDataRepository): Promi
   }
 
   // Nothing stored at all — fall back to the seeded demo dataset (Req 9.4).
-  const demo = seedMockDataset();
+  // Anchor the demo window to "today" (UTC) so the default 7d/30d presets,
+  // which resolve relative to the current date, overlap the seeded records on
+  // first load. The seeder's own default window stays fixed for determinism;
+  // only this app-boot fallback is now-anchored.
+  const endDay = new Date(nowMs).toISOString().slice(0, 10);
+  const demo = seedMockDataset({ endDay });
   await repository.saveDataset(demo);
   await repository.setActiveDatasetId(demo.id);
   return demo;
@@ -198,7 +211,7 @@ export async function hydrate(
   useSLAStore.getState().setConfig(sla);
 
   // Restore (or seed) the active dataset and its metadata list.
-  const dataset = await restoreActiveDataset(repository);
+  const dataset = await restoreActiveDataset(repository, nowMs);
   useDatasetStore.getState().setActiveDataset(dataset);
   useDatasetStore.getState().setDatasets(await repository.listDatasets());
 
